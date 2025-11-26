@@ -23,6 +23,11 @@ class ChatFrontend {
      * بارگذاری اسکریپت‌ها و استایل‌ها
      */
     public function enqueue_scripts() {
+        // فقط در فرانت‌اند و نه در ادمین/REST/AJAX
+        if ( is_admin() || defined( 'DOING_AJAX' ) ) {
+            return;
+        }
+
         wp_enqueue_style(
             'salenoo-chat-public',
             SALENOO_CHAT_URL . 'assets/public/css/chat.css',
