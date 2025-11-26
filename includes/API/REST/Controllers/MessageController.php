@@ -45,13 +45,14 @@ class MessageController {
             $lead->save();
         }
 
-        // ذخیره پیام
-        $message = new Message();
-        $message->lead_id = $lead->id;
-        $message->sender = 'visitor';
-        $message->content = $content;
-        $message->timestamp = current_time( 'mysql' );
-        $message->save();
+        // ✅ استفاده از MessageService برای ارسال پیام
+        $result = $this->message_service->send_visitor_message( $lead->id, $content );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        $message = $result;
 
         return new WP_REST_Response( [
             'success' => true,
