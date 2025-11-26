@@ -4,7 +4,7 @@
  * Plugin URI:  https://salenoo.ir
  * Description: سیستم چت آنلاین هوشمند با قابلیت مدیریت مشتری و اتصال به اپلیکیشن موبایل
 
- * Version:     1.0.2
+ * Version:     1.0.3
  * Author:      Salenoo Team
  * Text Domain: salenoo-chat
  * Domain Path: /languages
@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
 
 // تعریف ثابت‌ها به‌صورت شرطی
 if ( ! defined( 'SALENOO_CHAT_VERSION' ) ) {
-    define( 'SALENOO_CHAT_VERSION', '1.0.2' );
+    define( 'SALENOO_CHAT_VERSION', '1.0.3' );
 
 }
 if ( ! defined( 'SALENOO_CHAT_PATH' ) ) {
