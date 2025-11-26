@@ -20,10 +20,9 @@ class ChatView {
         }
 
         $messages = Message::get_messages_by_lead( $lead_id );
-
-        // علامت‌گذاری پیام‌های بازدیدکننده به‌عنوان خوانده‌شده
         Message::mark_as_read( $lead_id );
 
+        // خروجی HTML
         ?>
         <div class="wrap salenoo-admin-chat">
             <h1><?php echo esc_html( sprintf( __( 'چت با %s', 'salenoo-chat' ), $lead->name ) ); ?></h1>

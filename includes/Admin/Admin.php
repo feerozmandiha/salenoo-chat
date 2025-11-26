@@ -55,14 +55,13 @@ class Admin {
         $list_table = new LeadsListTable();
         $list_table->prepare_items();
         ?>
-        <div class="wrap">
-            <h1><?php _e( 'لیست مشتریان', 'salenoo-chat' ); ?></h1>
-            <form method="post">
-                <?php
-                $list_table->display();
-                ?>
-            </form>
-        </div>
+            <div class="wrap">
+                <h1><?php _e( 'لیست مشتریان', 'salenoo-chat' ); ?></h1>
+                <form id="leads-filter" method="get">
+                    <input type="hidden" name="page" value="salenoo-chat-leads" />
+                    <?php $list_table->display(); ?>
+                </form>
+            </div>
         <?php
     }
 

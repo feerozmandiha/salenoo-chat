@@ -58,14 +58,24 @@ class LeadsListTable extends \WP_List_Table {
     }
 
     public function prepare_items() {
-        $this->_column_headers = $this->get_column_info();
+        // 1. ستون‌ها را ثبت کن
+        $columns = $this->get_columns();
+        $hidden = array(); // ستون‌های پنهان
+        $sortable = $this->get_sortable_columns();
+
+        // 2. هدرها را تنظیم کن (این خط مهم‌ترین تغییر است)
+        $this->_column_headers = array( $columns, $hidden, $sortable );
+
+        // 3. داده‌ها را بخوان
         $per_page = 20;
         $current_page = $this->get_pagenum();
         $total_items = $this->get_total_leads();
+
         $this->set_pagination_args( array(
             'total_items' => $total_items,
             'per_page'    => $per_page,
         ) );
+
         $this->items = $this->get_leads( $per_page, ( $current_page - 1 ) * $per_page );
     }
 
