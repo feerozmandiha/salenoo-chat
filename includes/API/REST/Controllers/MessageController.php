@@ -8,6 +8,8 @@
 namespace SalenooChat\API\REST\Controllers;
 
 use SalenooChat\Services\MessageService;
+use SalenooChat\Models\Lead;
+use SalenooChat\Models\Message;
 use WP_REST_Request;
 use WP_REST_Response;
 use WP_Error;
@@ -26,27 +28,40 @@ class MessageController {
      * ارسال پیام جدید توسط بازدیدکننده
      */
     public function send_message( WP_REST_Request $request ) {
-        $lead_id = $request->get_param( 'lead_id' );
+        $visitor_id = $request->get_param( 'visitor_id' );
         $content = $request->get_param( 'content' );
 
-        if ( ! $lead_id || ! $content ) {
-            return new WP_Error( 'missing_params', __( 'شناسه‌ی لید و محتوای پیام ضروری است.', 'salenoo-chat' ), array( 'status' => 400 ) );
+        if ( ! $visitor_id || ! $content ) {
+            return new WP_Error( 'missing_data', 'داده‌های ضروری وجود ندارد.', [ 'status' => 400 ] );
         }
 
-        $result = $this->message_service->send_visitor_message( $lead_id, $content );
-
-        if ( is_wp_error( $result ) ) {
-            return $result;
+        // یافتن یا ایجاد لید
+        $lead = Lead::find_by_visitor_id( $visitor_id );
+        if ( ! $lead ) {
+            $lead = new Lead();
+            $lead->visitor_id = $visitor_id;
+            $lead->created_at = current_time( 'mysql' );
+            $lead->last_seen = current_time( 'mysql' );
+            $lead->save();
         }
 
-        return new WP_REST_Response( array(
+        // ذخیره پیام
+        $message = new Message();
+        $message->lead_id = $lead->id;
+        $message->sender = 'visitor';
+        $message->content = $content;
+        $message->timestamp = current_time( 'mysql' );
+        $message->save();
+
+        return new WP_REST_Response( [
             'success' => true,
-            'message' => array(
-                'id'        => $result->id,
-                'content'   => $result->content,
-                'timestamp' => $result->timestamp,
-            ),
-        ), 200 );
+            'lead_id' => $lead->id,
+            'message' => [
+                'id' => $message->id,
+                'content' => $message->content,
+                'timestamp' => $message->timestamp
+            ]
+        ], 200 );
     }
 
     /**
@@ -78,5 +93,40 @@ class MessageController {
         return new WP_REST_Response( array(
             'messages' => $message_data,
         ), 200 );
+    }
+
+    public function send_admin_message( WP_REST_Request $request ) {
+        $lead_id = $request->get_param( 'lead_id' );
+        $content = $request->get_param( 'content' );
+
+        if ( ! $lead_id || ! $content ) {
+            return new WP_Error( 'missing_data', 'داده ناقص است.', [ 'status' => 400 ] );
+        }
+
+        $lead = \SalenooChat\Models\Lead::find( $lead_id );
+        if ( ! $lead ) {
+            return new WP_Error( 'lead_not_found', 'لید یافت نشد.', [ 'status' => 404 ] );
+        }
+
+        $message = new \SalenooChat\Models\Message();
+        $message->lead_id = $lead_id;
+        $message->sender  = 'admin';
+        $message->content = $content;
+        $message->timestamp = current_time( 'mysql' );
+        $message->status  = 'read'; // پیام ادمین همیشه خوانده‌شده است
+        $message->save();
+
+        // به‌روزرسانی last_seen
+        $lead->last_seen = current_time( 'mysql' );
+        $lead->save();
+
+        return new WP_REST_Response( [
+            'success' => true,
+            'message' => [
+                'id' => $message->id,
+                'content' => $message->content,
+                'timestamp' => $message->timestamp
+            ]
+        ], 200 );
     }
 }

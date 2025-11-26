@@ -79,22 +79,26 @@ class LeadsListTable extends \WP_List_Table {
         $this->items = $this->get_leads( $per_page, ( $current_page - 1 ) * $per_page );
     }
 
+    // در متد column_default
     public function column_default( $item, $column_name ) {
-        switch ( $column_name ) {
-            case 'created_at':
-            case 'last_seen':
-                return get_date_from_gmt( $item->$column_name, 'Y/m/d H:i' );
-            default:
-                return esc_html( $item->$column_name );
+        $value = $item->$column_name ?? '';
+        if ( $column_name === 'phone' && empty( $value ) ) {
+            return '—';
         }
+        if ( in_array( $column_name, [ 'created_at', 'last_seen' ] ) ) {
+            return get_date_from_gmt( $value, 'Y/m/d H:i' );
+        }
+        return esc_html( $value ?: '—' );
     }
 
+    // در متد column_name
     public function column_name( $item ) {
+        $name = $item->name ?: 'ناشناس';
         $chat_url = admin_url( 'admin.php?page=salenoo-chat-chat&lead_id=' . $item->id );
         return sprintf(
-            '<a href="%s"><strong>%s</strong></a>',
+            '<a href="%s">%s</a>',
             esc_url( $chat_url ),
-            esc_html( $item->name )
+            esc_html( $name )
         );
     }
 

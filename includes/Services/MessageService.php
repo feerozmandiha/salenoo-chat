@@ -21,29 +21,33 @@ class MessageService {
      * @param string $content
      * @return Message|WP_Error
      */
+    /**
+     * ارسال پیام جدید توسط بازدیدکننده
+     */
     public function send_visitor_message( $lead_id, $content ) {
         if ( empty( $lead_id ) || empty( $content ) ) {
-            return new \WP_Error( 'missing_data', __( 'داده‌های ضروری موجود نیستند.', 'salenoo-chat' ) );
+            return new \WP_Error( 'missing_data', 'داده‌های ضروری موجود نیستند.' );
         }
 
         // بررسی وجود لید
         $lead = Lead::find( $lead_id );
         if ( ! $lead ) {
-            return new \WP_Error( 'lead_not_found', __( 'لید مورد نظر یافت نشد.', 'salenoo-chat' ) );
+            return new \WP_Error( 'lead_not_found', 'لید مورد نظر یافت نشد.' );
         }
 
         // ایجاد پیام جدید
-        $message = new Message();
+        $message = new \SalenooChat\Models\Message();
         $message->lead_id = $lead_id;
         $message->sender  = 'visitor';
         $message->content = $content;
+        $message->timestamp = current_time( 'mysql' );
         $message->status  = 'unread';
 
         if ( ! $message->save() ) {
-            return new \WP_Error( 'save_failed', __( 'ذخیره‌ی پیام با خطا مواجه شد.', 'salenoo-chat' ) );
+            return new \WP_Error( 'save_failed', 'ذخیره‌ی پیام با خطا مواجه شد.' );
         }
 
-        // به‌روزرسانی last_seen لید
+        // ✅ به‌روزرسانی last_seen لید
         $lead->last_seen = current_time( 'mysql' );
         $lead->save();
 

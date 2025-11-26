@@ -1,67 +1,48 @@
 <?php
-/**
- * مدیریت بخش فرانت‌اند سایت (ویجت چت)
- *
- * @package SalenooChat\Public
- */
-
 namespace SalenooChat\Public;
 
 defined( 'ABSPATH' ) || exit;
 
 class ChatFrontend {
-
-    /**
-     * راه‌اندازی فرانت‌اند
-     */
     public function init() {
-        add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
-        add_action( 'wp_footer', array( $this, 'render_chat_widget' ) );
+        add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+        add_action( 'wp_footer', [ $this, 'render_chat_button' ] );
     }
 
-    /**
-     * بارگذاری اسکریپت‌ها و استایل‌ها
-     */
     public function enqueue_scripts() {
-        // فقط در فرانت‌اند و نه در ادمین/REST/AJAX
-        if ( is_admin() || defined( 'DOING_AJAX' ) ) {
+        // جلوگیری از بارگذاری در ادمین، AJAX و REST API
+        if ( 
+            is_admin() || 
+            ( defined( 'DOING_AJAX' ) && DOING_AJAX ) || 
+            ( defined( 'REST_REQUEST' ) && REST_REQUEST ) 
+        ) {
             return;
         }
 
-        wp_enqueue_style(
-            'salenoo-chat-public',
-            SALENOO_CHAT_URL . 'assets/public/css/chat.css',
-            array(),
-            SALENOO_CHAT_VERSION
+        wp_enqueue_style( 
+            'salenoo-chat', 
+            SALENOO_CHAT_URL . 'assets/public/css/chat.css', 
+            [], 
+            SALENOO_CHAT_VERSION 
         );
 
-        wp_enqueue_script(
-            'salenoo-chat-public',
-            SALENOO_CHAT_URL . 'assets/public/js/chat.js',
-            array( 'jquery' ),
-            SALENOO_CHAT_VERSION,
-            true
+        wp_enqueue_script( 
+            'salenoo-chat', 
+            SALENOO_CHAT_URL . 'assets/public/js/chat.js', 
+            [], 
+            SALENOO_CHAT_VERSION, 
+            true 
         );
 
-        // ارسال داده‌های لازم به اسکریپت (مثل ajax_url)
-        wp_localize_script(
-            'salenoo-chat-public',
-            'salenooChatConfig',
-            array(
-                'ajax_url' => admin_url( 'admin-ajax.php' ),
-                'rest_url' => rest_url( 'salenoo-chat/v1/' ),
-                'is_mobile' => wp_is_mobile(),
-                'nonce'    => wp_create_nonce( 'wp_rest' ), // برای امنیت REST
-
-            )
-        );
+        wp_localize_script( 'salenoo-chat', 'salenooChatConfig', [
+            'rest_url' => rest_url( 'salenoo-chat/v1/' ),
+            'nonce'    => wp_create_nonce( 'wp_rest' ),
+        ] );
     }
 
-    /**
-     * رندر ویجت چت در فوتر سایت
-     */
-    public function render_chat_widget() {
-        // در نسخه‌ی بعدی: فرم اولیه و ویجت چت
-        echo '<div id="salenoo-chat-widget"></div>';
+    public function render_chat_button() {
+        echo '<div id="salenoo-chat-trigger" class="salenoo-chat-trigger">
+                <span class="salenoo-chat-icon">💬</span>
+              </div>';
     }
 }

@@ -10,22 +10,75 @@ namespace SalenooChat\Admin;
 
 use SalenooChat\Admin\LeadsListTable;
 use SalenooChat\Admin\ChatView;
+use SalenooChat\Models\Lead;
+use SalenooChat\Admin\AdminAssets;
+
 
 class Admin {
 
     public function init() {
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
-        add_action( 'admin_init', array( $this, 'handle_admin_actions' ) );
+        add_action( 'wp_ajax_salenoo_edit_lead', [ $this, 'ajax_edit_lead' ] );
+        add_action( 'admin_menu', [ $this, 'add_admin_menu' ] );
+        add_action( 'admin_bar_menu', [ $this, 'add_admin_bar_badge' ], 999 ); // برای نوار بالایی
+
+            // بارگذاری اسکریپت‌های ادمین
+        $admin_assets = new AdminAssets();
+        $admin_assets->init();
+    }
+        
+    public function add_admin_bar_badge( $admin_bar ) {
+        $unread_count = $this->get_unread_message_count();
+        if ( $unread_count > 0 ) {
+            $admin_bar->add_node( [
+                'id'    => 'salenoo-chat',
+                'title' => 'چت سالنو <span class="awaiting-mod">' . $unread_count . '</span>',
+                'href'  => admin_url( 'admin.php?page=salenoo-chat' ),
+            ] );
+        }
+    }
+
+
+    
+
+    public function ajax_edit_lead() {
+        if ( ! wp_verify_nonce( $_POST['salenoo_edit_nonce'] ?? '', 'salenoo_edit_lead' ) ) {
+            wp_send_json_error( 'خطا در احراز هویت.' );
+        }
+
+        $lead_id = absint( $_POST['lead_id'] ?? 0 );
+        $lead = Lead::find( $lead_id );
+        if ( ! $lead ) {
+            wp_send_json_error( 'لید یافت نشد.' );
+        }
+
+        $lead->name = sanitize_text_field( $_POST['name'] ?? '' );
+        $lead->phone = sanitize_text_field( $_POST['phone'] ?? '' );
+        $lead->email = sanitize_email( $_POST['email'] ?? '' );
+        $lead->save();
+
+        wp_send_json_success( 'اطلاعات به‌روزرسانی شد.' );
+    }
+
+    public function get_unread_count( $request ) {
+        $count = $this->get_unread_message_count();
+        return new \WP_REST_Response( [ 'count' => $count ], 200 );
     }
 
     public function add_admin_menu() {
+
+        $unread_count = $this->get_unread_message_count();
+        $menu_title = __( 'چت سالنو', 'salenoo-chat' );
+        if ( $unread_count > 0 ) {
+            $menu_title .= ' <span class="awaiting-mod"><span class="count-' . $unread_count . '">' . $unread_count . '</span></span>';
+        }
         add_menu_page(
             __( 'چت سالنو', 'salenoo-chat' ),
-            __( 'چت سالنو', 'salenoo-chat' ),
+            $menu_title,
             'manage_options',
             'salenoo-chat',
-            array( $this, 'render_dashboard' ),
+            [ $this, 'render_dashboard' ],
             'dashicons-format-chat',
             30
         );
@@ -78,28 +131,17 @@ class Admin {
         echo '<p>' . __( 'از منوی سمت چپ، بخش «مشتریان» را انتخاب کنید.', 'salenoo-chat' ) . '</p></div>';
     }
 
-    /**
-     * پردازش ارسال پیام ادمین (در آینده با AJAX)
-     */
-    public function handle_admin_actions() {
-        if ( isset( $_POST['salenoo_nonce'] ) && wp_verify_nonce( $_POST['salenoo_nonce'], 'salenoo_send_admin_message' ) ) {
-            if ( isset( $_POST['lead_id'] ) && isset( $_POST['message'] ) ) {
-                $lead_id = absint( $_POST['lead_id'] );
-                $content = sanitize_textarea_field( $_POST['message'] );
-
-                if ( $lead_id && $content ) {
-                    $message = new \SalenooChat\Models\Message();
-                    $message->lead_id = $lead_id;
-                    $message->sender  = 'admin';
-                    $message->content = $content;
-                    $message->save();
-                }
-
-                wp_safe_redirect( wp_get_referer() );
-                exit;
-            }
-        }
+    // شمارش پیام‌های خوانده‌نشده
+    private function get_unread_message_count() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'salenoo_messages';
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table} WHERE sender = %s AND status = %s",
+            'visitor',
+            'unread'
+        ) );
     }
+
 
     public function enqueue_scripts( $hook ) {
         // در آینده: استایل اختصاصی برای پنل

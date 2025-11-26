@@ -7,9 +7,10 @@
 
 namespace SalenooChat\API\REST;
 
+use Automattic\WooCommerce\Internal\StockNotifications\Admin\AdminManager;
 use SalenooChat\API\REST\Controllers\LeadController;
 use SalenooChat\API\REST\Controllers\MessageController; // ✅ اضافه شد
-
+use SalenooChat\Admin\Admin;
 
 
 defined( 'ABSPATH' ) || exit;
@@ -29,7 +30,7 @@ class Routes {
     public function register_routes() {
         $lead_controller    = new LeadController();
         $message_controller = new MessageController();
-
+        $admin_controller   = new Admin();
         // ثبت لید
         register_rest_route( 'salenoo-chat/v1', '/leads/register', array(
             'methods'             => 'POST',
@@ -56,6 +57,23 @@ class Routes {
             'methods'             => 'GET',
             'callback'            => array( $message_controller, 'get_messages' ),
             'permission_callback' => '__return_true',
+        ) );
+            //شمارش پیام های خوانده نشده
+        register_rest_route( 'salenoo-chat/v1', '/admin/unread-count', array(
+            'methods' => 'GET',
+            'callback' => [ $admin_controller, 'get_unread_count' ],
+            'permission_callback' => function() {
+                return current_user_can( 'manage_options' );
+            },
+        ) );
+
+        //ارسال پیام ادمین
+        register_rest_route( 'salenoo-chat/v1', '/messages/send-admin', array(
+            'methods'             => 'POST',
+            'callback'            => [ $message_controller, 'send_admin_message' ],
+            'permission_callback' => function() {
+                return current_user_can( 'manage_options' );
+            },
         ) );
     }
 

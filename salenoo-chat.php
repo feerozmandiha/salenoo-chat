@@ -4,8 +4,7 @@
  * Plugin URI:  https://salenoo.ir
  * Description: سیستم چت آنلاین هوشمند با قابلیت مدیریت مشتری و اتصال به اپلیکیشن موبایل
 
-* Version:     1.0.2
- * Version:     1.0.0
+ * Version:     1.0.2
  * Author:      Salenoo Team
  * Text Domain: salenoo-chat
  * Domain Path: /languages
@@ -19,7 +18,6 @@ defined( 'ABSPATH' ) || exit;
 // تعریف ثابت‌ها به‌صورت شرطی
 if ( ! defined( 'SALENOO_CHAT_VERSION' ) ) {
     define( 'SALENOO_CHAT_VERSION', '1.0.2' );
-    define( 'SALENOO_CHAT_VERSION', '1.0.0' );
 
 }
 if ( ! defined( 'SALENOO_CHAT_PATH' ) ) {
@@ -32,12 +30,14 @@ if ( ! defined( 'SALENOO_CHAT_URL' ) ) {
 // بارگذاری کلاس‌های هسته
 require_once SALENOO_CHAT_PATH . 'includes/Core/Autoloader.php';
 
-// راه‌اندازی افزونه
+// فعال‌سازی افزونه
 add_action( 'plugins_loaded', function () {
-    // ✅ مدیریت دیتابیس در هر بار لود شدن افزونه
-    \SalenooChat\Core\DatabaseManager::init();
+    \SalenooChat\Core\DatabaseManager::init(); // اطمینان از ساخت جداول
+    ( new \SalenooChat\Core\Plugin() )->init();
+} );
 
-    if ( class_exists( 'SalenooChat\Core\Plugin' ) ) {
-        ( new \SalenooChat\Core\Plugin() )->init();
-    }
+// فعال‌سازی با ایجاد جداول
+register_activation_hook( __FILE__, function () {
+    require_once SALENOO_CHAT_PATH . 'includes/Core/DatabaseManager.php';
+    \SalenooChat\Core\DatabaseManager::init();
 } );
