@@ -12,14 +12,14 @@ defined( 'ABSPATH' ) || exit;
 class Security {
 
     /**
-     * پاک‌سازی نام (فقط حروف فارسی، انگلیسی و فاصله)
+     * پاک‌سازی نام (حروف فارسی، انگلیسی، اعداد، فاصله، خط‌تیره، آپاستروف)
      *
      * @param string $name
      * @return string
      */
     public static function sanitize_name( $name ) {
-        // حذف کاراکترهای خاص، مجاز: حروف، فاصله، خط‌تیره
-        $name = preg_replace( '/[^آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیئ\s\-]/u', '', $name );
+        // مجاز: حروف فارسی، انگلیسی، اعداد، فاصله، خط‌تیره، آپاستروف
+        $name = preg_replace( '/[^آابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیئa-zA-Z0-9\s\'\-]/u', '', $name );
         return sanitize_text_field( trim( $name ) );
     }
 
