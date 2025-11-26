@@ -1,10 +1,4 @@
 <?php
-/**
- * نمایش لیست لیدها در پنل مدیریت با WP_List_Table
- *
- * @package SalenooChat\Admin
- */
-
 namespace SalenooChat\Admin;
 
 if ( ! class_exists( 'WP_List_Table' ) ) {
@@ -15,9 +9,6 @@ use SalenooChat\Models\Lead;
 
 class LeadsListTable extends \WP_List_Table {
 
-    /**
-     * سازنده
-     */
     public function __construct() {
         parent::__construct( array(
             'singular' => 'lead',
@@ -26,44 +17,32 @@ class LeadsListTable extends \WP_List_Table {
         ) );
     }
 
-    /**
-     * تعریف ستون‌ها
-     */
     public function get_columns() {
         return array(
-            'cb'        => '<input type="checkbox" />',
-            'name'      => __( 'نام', 'salenoo-chat' ),
-            'phone'     => __( 'شماره تماس', 'salenoo-chat' ),
-            'email'     => __( 'ایمیل', 'salenoo-chat' ),
-            'context'   => __( 'هدف مشاوره', 'salenoo-chat' ),
-            'created'   => __( 'اولین تماس', 'salenoo-chat' ),
-            'last_seen' => __( 'آخرین فعالیت', 'salenoo-chat' ),
+            'cb'         => '<input type="checkbox" />',
+            'name'       => __( 'نام', 'salenoo-chat' ),
+            'phone'      => __( 'شماره تماس', 'salenoo-chat' ),
+            'email'      => __( 'ایمیل', 'salenoo-chat' ),
+            'context'    => __( 'هدف مشاوره', 'salenoo-chat' ),
+            'created_at' => __( 'اولین تماس', 'salenoo-chat' ),
+            'last_seen'  => __( 'آخرین فعالیت', 'salenoo-chat' ),
         );
     }
 
-    /**
-     * ستون‌های قابل مرتب‌سازی
-     */
     protected function get_sortable_columns() {
         return array(
-            'name'      => array( 'name', false ),
-            'created'   => array( 'created_at', false ),
-            'last_seen' => array( 'last_seen', false ),
+            'name'       => array( 'name', false ),
+            'created_at' => array( 'created_at', false ),
+            'last_seen'  => array( 'last_seen', false ),
         );
     }
 
-    /**
-     * اقدامات دسته‌جمعی (حذف)
-     */
     public function get_bulk_actions() {
         return array(
             'delete' => __( 'حذف', 'salenoo-chat' ),
         );
     }
 
-    /**
-     * پردازش اقدامات دسته‌جمعی
-     */
     public function process_bulk_action() {
         if ( 'delete' === $this->current_action() ) {
             $ids = isset( $_POST['lead'] ) ? wp_parse_id_list( $_POST['lead'] ) : array();
@@ -78,12 +57,8 @@ class LeadsListTable extends \WP_List_Table {
         }
     }
 
-    /**
-     * دریافت داده‌ها از دیتابیس
-     */
     public function prepare_items() {
         $this->_column_headers = $this->get_column_info();
-
         $per_page = 20;
         $current_page = $this->get_pagenum();
         $total_items = $this->get_total_leads();
@@ -91,17 +66,12 @@ class LeadsListTable extends \WP_List_Table {
             'total_items' => $total_items,
             'per_page'    => $per_page,
         ) );
-
-        $leads = $this->get_leads( $per_page, ( $current_page - 1 ) * $per_page );
-        $this->items = $leads;
+        $this->items = $this->get_leads( $per_page, ( $current_page - 1 ) * $per_page );
     }
 
-    /**
-     * نمایش محتوای سلول‌ها
-     */
     public function column_default( $item, $column_name ) {
         switch ( $column_name ) {
-            case 'created':
+            case 'created_at':
             case 'last_seen':
                 return get_date_from_gmt( $item->$column_name, 'Y/m/d H:i' );
             default:
@@ -109,9 +79,6 @@ class LeadsListTable extends \WP_List_Table {
         }
     }
 
-    /**
-     * ستون نام — با لینک به صفحه‌ی چت
-     */
     public function column_name( $item ) {
         $chat_url = admin_url( 'admin.php?page=salenoo-chat-chat&lead_id=' . $item->id );
         return sprintf(
@@ -121,9 +88,6 @@ class LeadsListTable extends \WP_List_Table {
         );
     }
 
-    /**
-     * ستون چک‌باکس
-     */
     public function column_cb( $item ) {
         return sprintf(
             '<input type="checkbox" name="lead[]" value="%s" />',
@@ -131,7 +95,7 @@ class LeadsListTable extends \WP_List_Table {
         );
     }
 
-    // --- متدهای کمکی ---
+    // --- کمکی‌ها ---
 
     private function get_total_leads() {
         global $wpdb;
@@ -145,7 +109,6 @@ class LeadsListTable extends \WP_List_Table {
         $order_by = isset( $_GET['orderby'] ) ? sanitize_text_field( $_GET['orderby'] ) : 'created_at';
         $order    = isset( $_GET['order'] ) && 'asc' === $_GET['order'] ? 'ASC' : 'DESC';
 
-        // اجازه فقط فیلدهای مجاز برای مرتب‌سازی
         $allowed = array( 'name', 'created_at', 'last_seen' );
         if ( ! in_array( $order_by, $allowed, true ) ) {
             $order_by = 'created_at';
