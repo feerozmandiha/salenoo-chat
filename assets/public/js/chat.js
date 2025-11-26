@@ -8,7 +8,7 @@ class SalenooChatWidget {
         this.leadId = null;
         this.isChatOpen = false;
         this.pollingInterval = null;
-        this.lastMessageTimestamp = null;
+        this.lastMessageId = null; // تغییر به lastMessageId به‌جای timestamp
 
         this.init();
     }
@@ -17,7 +17,6 @@ class SalenooChatWidget {
         this.setupTrigger();
     }
 
-    // --- visitor_id ---
     getOrCreateVisitorId() {
         const key = 'salenoo_chat_visitor_id';
         let id = localStorage.getItem( key );
@@ -32,7 +31,6 @@ class SalenooChatWidget {
         return id;
     }
 
-    // --- تنظیم کلیک روی دکمه ---
     setupTrigger() {
         const trigger = document.getElementById( 'salenoo-chat-trigger' );
         if ( trigger ) {
@@ -42,7 +40,6 @@ class SalenooChatWidget {
         }
     }
 
-    // --- باز/بسته کردن ---
     toggleChat() {
         if ( this.isChatOpen ) {
             this.closeChat();
@@ -71,7 +68,6 @@ class SalenooChatWidget {
         }
     }
 
-    // --- رندر چت ---
     renderChatWidget() {
         const widget = document.createElement( 'div' );
         widget.id = 'salenoo-chat-widget';
@@ -96,12 +92,10 @@ class SalenooChatWidget {
         `;
         document.body.appendChild( widget );
 
-        // بستن با کلیک روی ×
         widget.querySelector( '.salenoo-chat-close' ).addEventListener( 'click', () => {
             this.closeChat();
         } );
 
-        // ارسال پیام
         const input = widget.querySelector( 'textarea' );
         const button = widget.querySelector( 'button' );
 
@@ -122,7 +116,6 @@ class SalenooChatWidget {
         } );
     }
 
-    // --- ارسال و polling ---
     async sendMessage( content ) {
         const response = await fetch( this.config.rest_url + 'messages/send', {
             method: 'POST',
@@ -136,13 +129,22 @@ class SalenooChatWidget {
         if ( response.ok ) {
             const result = await response.json();
             if ( result.success ) {
+                // append پیام خودِ بازدیدکننده
                 this.appendMessage({
+                    id: result.message.id || null,
                     sender: 'visitor',
                     content: result.message.content,
                     timestamp: result.message.timestamp
                 });
-                this.leadId = result.lead_id;
-                this.lastMessageTimestamp = result.message.timestamp;
+
+                // تنظیم leadId (اگر موجود باشد)
+                this.leadId = result.lead_id || this.leadId;
+
+                // اگر id برگشته، lastMessageId را به‌روز کن و در localStorage ذخیره کن
+                if ( result.message.id ) {
+                    this.lastMessageId = Math.max( this.lastMessageId || 0, parseInt( result.message.id, 10 ) );
+                    localStorage.setItem( 'salenoo_chat_last_message_' + this.leadId, String( this.lastMessageId ) );
+                }
             }
         }
     }
@@ -150,12 +152,12 @@ class SalenooChatWidget {
     async fetchNewMessages() {
         if ( ! this.leadId ) return;
 
-        // دریافت آخرین timestamp از localStorage (برای پایداری)
-        const storedTimestamp = localStorage.getItem( 'salenoo_chat_last_message_' + this.leadId );
-        const lastTimestamp = storedTimestamp || this.lastMessageTimestamp;
+        // استفاده از lastMessageId ذخیره‌شده یا متغیر درجا
+        const storedId = localStorage.getItem( 'salenoo_chat_last_message_' + this.leadId );
+        const lastId = storedId ? parseInt( storedId, 10 ) : ( this.lastMessageId ? parseInt( this.lastMessageId, 10 ) : null );
 
-        const url = `${this.config.rest_url}messages?lead_id=${this.leadId}` +
-            ( lastTimestamp ? `&last_timestamp=${encodeURIComponent( lastTimestamp )}` : '' );
+        let url = `${this.config.rest_url}messages?lead_id=${this.leadId}`;
+        if ( lastId ) url += `&last_id=${lastId}`;
 
         try {
             const response = await fetch( url, {
@@ -165,21 +167,21 @@ class SalenooChatWidget {
             if ( response.ok ) {
                 const data = await response.json();
                 if ( data.messages && data.messages.length > 0 ) {
-                    let latestTimestamp = lastTimestamp;
+                    let maxId = lastId || 0;
 
                     data.messages.forEach( msg => {
                         if ( msg.sender === 'admin' ) {
                             this.appendMessage( msg );
-                            // به‌روزرسانی latestTimestamp با جدیدترین پیام
-                            if ( ! latestTimestamp || new Date( msg.timestamp ) > new Date( latestTimestamp ) ) {
-                                latestTimestamp = msg.timestamp;
-                            }
+                        }
+                        if ( msg.id && parseInt( msg.id, 10 ) > maxId ) {
+                            maxId = parseInt( msg.id, 10 );
                         }
                     } );
 
-                    // ذخیره در متغیر و localStorage
-                    this.lastMessageTimestamp = latestTimestamp;
-                    localStorage.setItem( 'salenoo_chat_last_message_' + this.leadId, latestTimestamp );
+                    if ( maxId > ( this.lastMessageId || 0 ) ) {
+                        this.lastMessageId = maxId;
+                        localStorage.setItem( 'salenoo_chat_last_message_' + this.leadId, String( this.lastMessageId ) );
+                    }
 
                     this.scrollToBottom();
                 }
@@ -188,26 +190,14 @@ class SalenooChatWidget {
             console.warn( 'Polling error:', err );
         }
     }
+
     startPolling() {
+        if ( this.pollingInterval ) return;
+        // اجرا بلافاصله و سپس به صورت دوره‌ای
+        this.fetchNewMessages();
         this.pollingInterval = setInterval( () => {
             if ( ! this.leadId ) return;
-            fetch( `${this.config.rest_url}messages?lead_id=${this.leadId}`, {
-                headers: { 'X-WP-Nonce': this.config.nonce }
-            } )
-            .then( r => r.json() )
-            .then( data => {
-                if ( data.messages && data.messages.length > 0 ) {
-                    data.messages.forEach( msg => {
-                        if ( msg.sender === 'admin' ) {
-                            this.appendMessage( msg );
-                            if ( new Date( msg.timestamp ) > new Date( this.lastMessageTimestamp ) ) {
-                                this.lastMessageTimestamp = msg.timestamp;
-                            }
-                        }
-                    } );
-                    this.scrollToBottom();
-                }
-            } );
+            this.fetchNewMessages();
         }, 2000 );
     }
 
@@ -215,10 +205,14 @@ class SalenooChatWidget {
         const container = document.querySelector( '.salenoo-chat-messages' );
         if ( ! container ) return;
 
+        // جلوگیری از append تکراری با استفاده از id (اگر وجود داشته باشد)
+        if ( msg.id && document.getElementById( 'msg-' + msg.id ) ) return;
+
         const welcome = container.querySelector( '.salenoo-chat-welcome' );
         if ( welcome ) welcome.remove();
 
         const el = document.createElement( 'div' );
+        el.id = msg.id ? 'msg-' + msg.id : '';
         el.className = `salenoo-chat-message ${msg.sender === 'visitor' ? 'sent' : 'received'}`;
         el.innerHTML = `
             <div class="salenoo-chat-message-content">${ this.escapeHtml( msg.content ) }</div>
@@ -239,7 +233,6 @@ class SalenooChatWidget {
     }
 }
 
-// راه‌اندازی
 document.addEventListener( 'DOMContentLoaded', () => {
     if ( typeof salenooChatConfig !== 'undefined' ) {
         new SalenooChatWidget( salenooChatConfig );

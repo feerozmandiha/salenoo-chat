@@ -10,22 +10,31 @@ namespace SalenooChat\Admin;
 use SalenooChat\Models\Lead;
 use SalenooChat\Models\Message;
 
+defined( 'ABSPATH' ) || exit;
+
 class ChatView {
 
+    /**
+     * رندر صفحهٔ چت ادمین با یک لید مشخص
+     *
+     * @param int $lead_id
+     * @return void
+     */
     public static function render( $lead_id ) {
         $lead = Lead::find( $lead_id );
         if ( ! $lead ) {
-            echo '<div class="notice notice-error"><p>لید یافت نشد.</p></div>';
+            echo '<div class="notice notice-error"><p>' . __( 'لید یافت نشد.', 'salenoo-chat' ) . '</p></div>';
             return;
         }
 
         // علامت‌گذاری پیام‌های کاربر به‌عنوان خوانده‌شده
         Message::mark_as_read( $lead_id );
-        $messages = Message::get_messages_by_lead( $lead_id );
 
+        // دریافت همهٔ پیام‌های مرتبط با لید (برای نمایش تاریخچه در پنل)
+        $messages = Message::get_messages_by_lead( $lead_id );
         ?>
         <div class="wrap salenoo-admin-chat">
-            <h1>چت با <?php echo esc_html( $lead->name ?: 'ناشناس' ); ?></h1>
+            <h1><?php echo esc_html( sprintf( __( 'چت با %s', 'salenoo-chat' ), $lead->name ?: __( 'ناشناس', 'salenoo-chat' ) ) ); ?></h1>
 
             <!-- فرم ویرایش اطلاعات (اختیاری) -->
             <div class="salenoo-edit-lead">
@@ -35,11 +44,11 @@ class ChatView {
                 <div id="edit-lead-form" style="display:none; margin-top:16px; padding:16px; background:#f9f9f9; border-radius:6px;">
                     <input type="hidden" id="lead-id" value="<?php echo esc_attr( $lead_id ); ?>">
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-                        <input type="text" id="edit-name" placeholder="نام" value="<?php echo esc_attr( $lead->name ); ?>">
-                        <input type="tel" id="edit-phone" placeholder="شماره تماس" value="<?php echo esc_attr( $lead->phone ); ?>">
+                        <input type="text" id="edit-name" placeholder="<?php esc_attr_e( 'نام', 'salenoo-chat' ); ?>" value="<?php echo esc_attr( $lead->name ); ?>">
+                        <input type="tel" id="edit-phone" placeholder="<?php esc_attr_e( 'شماره تماس', 'salenoo-chat' ); ?>" value="<?php echo esc_attr( $lead->phone ); ?>">
                     </div>
                     <div style="margin-bottom:12px;">
-                        <input type="email" id="edit-email" placeholder="ایمیل" value="<?php echo esc_attr( $lead->email ); ?>">
+                        <input type="email" id="edit-email" placeholder="<?php esc_attr_e( 'ایمیل', 'salenoo-chat' ); ?>" value="<?php echo esc_attr( $lead->email ); ?>">
                     </div>
                     <button type="button" id="save-lead-info" class="button button-primary">ذخیره اطلاعات</button>
                 </div>
@@ -47,18 +56,22 @@ class ChatView {
 
             <!-- پیام‌ها -->
             <div class="salenoo-chat-messages" id="salenoo-chat-messages">
-                <?php foreach ( $messages as $msg ): ?>
-                    <div class="salenoo-chat-message <?php echo esc_attr( $msg->sender === 'admin' ? 'sent' : 'received' ); ?>">
-                        <div class="salenoo-chat-message-content"><?php echo wp_kses_post( $msg->content ); ?></div>
-                        <time><?php echo esc_html( get_date_from_gmt( $msg->timestamp, 'H:i' ) ); ?></time>
-                    </div>
-                <?php endforeach; ?>
+                <?php if ( empty( $messages ) ): ?>
+                    <p class="salenoo-chat-welcome"><?php _e( 'هنوز پیامی ارسال نشده است.', 'salenoo-chat' ); ?></p>
+                <?php else: ?>
+                    <?php foreach ( $messages as $msg ): ?>
+                        <div id="msg-<?php echo esc_attr( $msg->id ); ?>" class="salenoo-chat-message <?php echo esc_attr( $msg->sender === 'admin' ? 'sent' : 'received' ); ?>">
+                            <div class="salenoo-chat-message-content"><?php echo wp_kses_post( $msg->content ); ?></div>
+                            <time><?php echo esc_html( get_date_from_gmt( $msg->timestamp, 'H:i' ) ); ?></time>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
 
-            <!-- ورودی پاسخ (بدون فرم) -->
+            <!-- ورودی پاسخ -->
             <div class="salenoo-chat-reply" style="margin-top:20px; display:flex; gap:10px;">
-                <textarea id="admin-message-input" placeholder="پیام خود را بنویسید..." style="flex:1; padding:10px; border:1px solid #ccc; border-radius:4px;" required></textarea>
-                <button id="admin-send-message" class="button button-primary" style="padding:10px 20px;">ارسال</button>
+                <textarea id="admin-message-input" placeholder="<?php esc_attr_e( 'پیام خود را بنویسید...', 'salenoo-chat' ); ?>" style="flex:1; padding:10px; border:1px solid #ccc; border-radius:4px;" required></textarea>
+                <button id="admin-send-message" class="button button-primary" style="padding:10px 20px;"><?php _e( 'ارسال', 'salenoo-chat' ); ?></button>
             </div>
         </div>
 
@@ -115,7 +128,45 @@ class ChatView {
             const leadId = <?php echo (int) $lead_id; ?>;
             const restUrl = '<?php echo esc_js( rest_url( 'salenoo-chat/v1/' ) ); ?>';
             const nonce = '<?php echo wp_create_nonce( 'wp_rest' ); ?>';
-            let lastTimestamp = '<?php echo esc_js( $messages ? end( $messages )->timestamp : '' ); ?>';
+
+            // مقداردهی اولیه lastMessageId از آخرین پیام سرور (اگر پیام نداریم صفر می‌ماند)
+            let lastMessageId = 0;
+            <?php if ( ! empty( $messages ) ): 
+                $lastMsg = end( $messages );
+                // reset internal pointer of $messages if needed
+                reset( $messages );
+            ?>
+                lastMessageId = <?php echo (int) $lastMsg->id; ?>;
+            <?php endif; ?>
+
+            const container = document.getElementById('salenoo-chat-messages');
+
+            // --- helper: جلوگیری از XSS ساده ---
+            function escapeHtml(str) {
+                if (!str) return '';
+                return String(str)
+                    .replaceAll('&','&amp;')
+                    .replaceAll('<','&lt;')
+                    .replaceAll('>','&gt;')
+                    .replaceAll('"','&quot;')
+                    .replaceAll("'", '&#039;');
+            }
+
+            // --- افزودن پیام به UI تنها در صورت عدم وجود ---
+            function appendMessage(msg) {
+                if (!msg || !msg.id && !msg.content) return;
+                if (msg.id && document.getElementById('msg-' + msg.id)) return; // جلوگیری از تکراری
+
+                const el = document.createElement('div');
+                el.id = msg.id ? 'msg-' + msg.id : '';
+                el.className = 'salenoo-chat-message ' + (msg.sender === 'admin' ? 'sent' : 'received');
+                el.innerHTML = `
+                    <div class="salenoo-chat-message-content">${ escapeHtml(msg.content) }</div>
+                    <time>${ new Date(msg.timestamp).toLocaleTimeString('fa-IR') }</time>
+                `;
+                container.appendChild(el);
+                container.scrollTop = container.scrollHeight;
+            }
 
             // --- ویرایش اطلاعات لید ---
             document.getElementById('toggle-edit-form').addEventListener('click', function() {
@@ -131,25 +182,38 @@ class ChatView {
                     email: document.getElementById('edit-email').value
                 };
 
+                // رمزینهٔ nonce برای admin-ajax در زمان render ممکن وجود نداشته باشد؛
+                // با این حال از ajax_object در صورت تعریف استفاده کن
+                const payload = new FormData();
+                payload.append('action', 'salenoo_edit_lead');
+                payload.append('lead_id', data.lead_id);
+                payload.append('name', data.name);
+                payload.append('phone', data.phone);
+                payload.append('email', data.email);
+                // اگر nonce در DOM موجود است، از آن استفاده کن
+                // (در render فعلی ما nonce موجود نیست — ولی wp.localize_script می‌تواند آن را اضافه کند)
+                // payload.append('_ajax_nonce', document.querySelector('#edit-lead-form input[name="_wpnonce"]').value || '');
+
                 fetch(ajax_object.ajax_url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'salenoo_edit_lead',
-                        ...data,
-                        _ajax_nonce: document.querySelector('#edit-lead-form input[name="_wpnonce"]').value || ''
-                    })
+                    body: payload
                 })
                 .then(r => r.json())
                 .then(res => {
                     if (res.success) {
-                        alert('اطلاعات با موفقیت ذخیره شد.');
+                        alert('<?php echo esc_js( __( 'اطلاعات با موفقیت ذخیره شد.', 'salenoo-chat' ) ); ?>');
                         document.getElementById('edit-lead-form').style.display = 'none';
+                    } else {
+                        alert('<?php echo esc_js( __( 'خطا در به‌روزرسانی اطلاعات.', 'salenoo-chat' ) ); ?>');
                     }
+                })
+                .catch(err => {
+                    console.error('edit lead error', err);
+                    alert('<?php echo esc_js( __( 'خطا در ارتباط با سرور.', 'salenoo-chat' ) ); ?>');
                 });
             });
 
-            // --- ارسال پاسخ ---
+            // --- ارسال پیام ادمین ---
             document.getElementById('admin-send-message').addEventListener('click', function() {
                 const input = document.getElementById('admin-message-input');
                 const content = input.value.trim();
@@ -165,53 +229,58 @@ class ChatView {
                 })
                 .then(r => r.json())
                 .then(data => {
-                    if (data.success) {
-                        const container = document.getElementById('salenoo-chat-messages');
-                        const el = document.createElement('div');
-                        el.className = 'salenoo-chat-message sent';
-                        el.innerHTML = `
-                            <div class="salenoo-chat-message-content">${ data.message.content }</div>
-                            <time>${ new Date(data.message.timestamp).toLocaleTimeString('fa-IR') }</time>
-                        `;
-                        container.appendChild(el);
-                        container.scrollTop = container.scrollHeight;
+                    if (data && data.success && data.message) {
+                        appendMessage({
+                            id: data.message.id,
+                            sender: 'admin',
+                            content: data.message.content,
+                            timestamp: data.message.timestamp
+                        });
+                        lastMessageId = Math.max(lastMessageId, parseInt(data.message.id, 10) || 0);
                         input.value = '';
+                    } else {
+                        console.error('send-admin: unexpected response', data);
+                        alert('<?php echo esc_js( __( 'ارسال با خطا مواجه شد.', 'salenoo-chat' ) ); ?>');
                     }
+                })
+                .catch(err => {
+                    console.error('send-admin error', err);
+                    alert('<?php echo esc_js( __( 'خطا در ارسال پیام.', 'salenoo-chat' ) ); ?>');
                 });
             });
 
-            // --- polling برای پیام جدید از کاربر ---
-            setInterval(() => {
-                let url = restUrl + 'messages?lead_id=' + leadId;
-                if (lastTimestamp) {
-                    url += '&last_timestamp=' + encodeURIComponent(lastTimestamp);
-                }
+            // --- polling پیام‌های جدید از سمت بازدیدکننده ---
+            let polling = null;
+            async function poll() {
+                try {
+                    let url = restUrl + 'messages?lead_id=' + leadId + '&last_id=' + lastMessageId;
+                    const resp = await fetch(url, {
+                        headers: { 'X-WP-Nonce': nonce }
+                    });
+                    const data = await resp.json();
+                    if (!data || !Array.isArray(data.messages)) return;
 
-                fetch(url, {
-                    headers: { 'X-WP-Nonce': nonce }
-                })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.messages && data.messages.length > 0) {
-                        const container = document.getElementById('salenoo-chat-messages');
-                        data.messages.forEach(msg => {
-                            if (msg.sender === 'visitor') {
-                                const el = document.createElement('div');
-                                el.className = 'salenoo-chat-message received';
-                                el.innerHTML = `
-                                    <div class="salenoo-chat-message-content">${ msg.content }</div>
-                                    <time>${ new Date(msg.timestamp).toLocaleTimeString('fa-IR') }</time>
-                                `;
-                                container.appendChild(el);
-                                container.scrollTop = container.scrollHeight;
-                                if (new Date(msg.timestamp) > new Date(lastTimestamp)) {
-                                    lastTimestamp = msg.timestamp;
-                                }
-                            }
-                        });
-                    }
-                });
-            }, 4000);
+                    let maxId = lastMessageId;
+                    data.messages.forEach(msg => {
+                        appendMessage(msg);
+                        if (parseInt(msg.id, 10) > maxId) {
+                            maxId = parseInt(msg.id, 10);
+                        }
+                    });
+                    if (maxId > lastMessageId) lastMessageId = maxId;
+
+                } catch (err) {
+                    console.error('poll error', err);
+                }
+            }
+
+            function startPolling() {
+                if (polling) return;
+                poll();
+                polling = setInterval(poll, 4000);
+            }
+
+            startPolling();
         });
         </script>
         <?php

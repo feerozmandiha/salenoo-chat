@@ -1,10 +1,4 @@
 <?php
-/**
- * کنترلر REST برای مدیریت پیام‌ها
- *
- * @package SalenooChat\API\REST\Controllers
- */
-
 namespace SalenooChat\API\REST\Controllers;
 
 use SalenooChat\Services\MessageService;
@@ -24,9 +18,6 @@ class MessageController {
         $this->message_service = new MessageService();
     }
 
-    /**
-     * ارسال پیام جدید توسط بازدیدکننده
-     */
     public function send_message( WP_REST_Request $request ) {
         $visitor_id = $request->get_param( 'visitor_id' );
         $content = $request->get_param( 'content' );
@@ -35,7 +26,6 @@ class MessageController {
             return new WP_Error( 'missing_data', 'داده‌های ضروری وجود ندارد.', [ 'status' => 400 ] );
         }
 
-        // یافتن یا ایجاد لید
         $lead = Lead::find_by_visitor_id( $visitor_id );
         if ( ! $lead ) {
             $lead = new Lead();
@@ -45,7 +35,6 @@ class MessageController {
             $lead->save();
         }
 
-        // ✅ استفاده از MessageService برای ارسال پیام
         $result = $this->message_service->send_visitor_message( $lead->id, $content );
 
         if ( is_wp_error( $result ) ) {
@@ -66,17 +55,19 @@ class MessageController {
     }
 
     /**
-     * دریافت پیام‌های جدید (برای polling)
+     * دریافت پیام‌ها — اکنون با last_id
      */
     public function get_messages( WP_REST_Request $request ) {
-        $lead_id        = $request->get_param( 'lead_id' );
-        $last_timestamp = $request->get_param( 'last_timestamp' );
+        $lead_id = $request->get_param( 'lead_id' );
+        $last_id = $request->get_param( 'last_id' );
 
         if ( ! $lead_id ) {
             return new WP_Error( 'missing_lead_id', __( 'شناسه‌ی لید ضروری است.', 'salenoo-chat' ), array( 'status' => 400 ) );
         }
 
-        $messages = $this->message_service->get_new_messages( $lead_id, $last_timestamp );
+        $last_id = $last_id ? absint( $last_id ) : null;
+
+        $messages = $this->message_service->get_new_messages( $lead_id, $last_id );
 
         $message_data = array_map( function( $msg ) {
             return array(
@@ -85,17 +76,18 @@ class MessageController {
                 'content'   => $msg->content,
                 'timestamp' => $msg->timestamp,
                 'status'    => $msg->status,
+                'delivered' => property_exists( $msg, 'delivered' ) ? $msg->delivered : 0,
             );
         }, $messages );
-
-        // علامت‌گذاری پیام‌های بازدیدکننده به‌عنوان خوانده‌شده (اختیاری)
-        // $this->message_service->mark_messages_as_read( $lead_id );
 
         return new WP_REST_Response( array(
             'messages' => $message_data,
         ), 200 );
     }
 
+    /**
+     * ارسال پیام ادمین (از پنل)
+     */
     public function send_admin_message( WP_REST_Request $request ) {
         $lead_id = $request->get_param( 'lead_id' );
         $content = $request->get_param( 'content' );
@@ -114,10 +106,10 @@ class MessageController {
         $message->sender  = 'admin';
         $message->content = $content;
         $message->timestamp = current_time( 'mysql' );
-        $message->status  = 'read'; // پیام ادمین همیشه خوانده‌شده است
+        $message->status  = 'unread'; // اصلاح: پیام ادمین خوانده نشده است
+        $message->delivered = 0;
         $message->save();
 
-        // به‌روزرسانی last_seen
         $lead->last_seen = current_time( 'mysql' );
         $lead->save();
 
@@ -129,5 +121,19 @@ class MessageController {
                 'timestamp' => $message->timestamp
             ]
         ], 200 );
+    }
+
+    /**
+     * مارک‌زدن پیام‌ها به‌عنوان delivered (POST: ids[])
+     */
+    public function mark_delivered( WP_REST_Request $request ) {
+        $ids = $request->get_param( 'ids' );
+        if ( empty( $ids ) || ! is_array( $ids ) ) {
+            return new WP_REST_Response( [ 'success' => false, 'error' => 'ids array required' ], 400 );
+        }
+
+        $updated = $this->message_service->mark_messages_delivered( $ids );
+
+        return new WP_REST_Response( [ 'success' => true, 'updated' => (int) $updated ], 200 );
     }
 }

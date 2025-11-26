@@ -1,10 +1,4 @@
 <?php
-/**
- * سرویس مدیریت پیام‌ها — ارسال، دریافت و نشانه‌گذاری خوانده‌شده
- *
- * @package SalenooChat\Services
- */
-
 namespace SalenooChat\Services;
 
 use SalenooChat\Models\Message;
@@ -14,40 +8,28 @@ defined( 'ABSPATH' ) || exit;
 
 class MessageService {
 
-    /**
-     * ارسال پیام جدید توسط بازدیدکننده
-     *
-     * @param int    $lead_id
-     * @param string $content
-     * @return Message|WP_Error
-     */
-    /**
-     * ارسال پیام جدید توسط بازدیدکننده
-     */
     public function send_visitor_message( $lead_id, $content ) {
         if ( empty( $lead_id ) || empty( $content ) ) {
             return new \WP_Error( 'missing_data', 'داده‌های ضروری موجود نیستند.' );
         }
 
-        // بررسی وجود لید
         $lead = Lead::find( $lead_id );
         if ( ! $lead ) {
             return new \WP_Error( 'lead_not_found', 'لید مورد نظر یافت نشد.' );
         }
 
-        // ایجاد پیام جدید
         $message = new \SalenooChat\Models\Message();
         $message->lead_id = $lead_id;
         $message->sender  = 'visitor';
         $message->content = $content;
         $message->timestamp = current_time( 'mysql' );
         $message->status  = 'unread';
+        $message->delivered = 0;
 
         if ( ! $message->save() ) {
             return new \WP_Error( 'save_failed', 'ذخیره‌ی پیام با خطا مواجه شد.' );
         }
 
-        // ✅ به‌روزرسانی last_seen لید
         $lead->last_seen = current_time( 'mysql' );
         $lead->save();
 
@@ -55,40 +37,54 @@ class MessageService {
     }
 
     /**
-     * دریافت پیام‌های جدید برای لید (برای polling)
+     * دریافت پیام‌های جدید برای لید (برای polling) — با استفاده از last_id
      *
      * @param int $lead_id
-     * @param string $last_timestamp آخرین زمانی که کاربر چت را دیده
-     * @return Message[]
+     * @param int|null $last_id
+     * @return Message[]|array
      */
-    public function get_new_messages( $lead_id, $last_timestamp = null ) {
+    public function get_new_messages( $lead_id, $last_id = null ) {
         global $wpdb;
         $table = $wpdb->prefix . 'salenoo_messages';
 
-        if ( $last_timestamp ) {
-            $messages = $wpdb->get_results( $wpdb->prepare(
-                "SELECT * FROM {$table} WHERE lead_id = %d AND timestamp > %s ORDER BY timestamp ASC",
+        if ( $last_id ) {
+            $rows = $wpdb->get_results( $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE lead_id = %d AND id > %d ORDER BY id ASC",
                 absint( $lead_id ),
-                $last_timestamp
+                absint( $last_id )
             ), ARRAY_A );
         } else {
-            $messages = $wpdb->get_results( $wpdb->prepare(
-                "SELECT * FROM {$table} WHERE lead_id = %d ORDER BY timestamp ASC",
+            // اولین بار: فقط آخرین 50 پیام
+            $rows = $wpdb->get_results( $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE lead_id = %d ORDER BY id DESC LIMIT 50",
                 absint( $lead_id )
             ), ARRAY_A );
+            $rows = array_reverse( $rows );
         }
 
         return array_map( function( $row ) {
             return new Message( $row );
-        }, $messages );
+        }, $rows );
+    }
+
+    public function mark_messages_as_read( $lead_id ) {
+        Message::mark_as_read( $lead_id );
     }
 
     /**
-     * علامت‌گذاری پیام‌ها به‌عنوان خوانده‌شده
+     * مارک‌زدن پیام‌ها به‌عنوان delivered
      *
-     * @param int $lead_id
+     * @param array $ids
+     * @return int|false تعداد ردیف‌های آپدیت‌شده یا false
      */
-    public function mark_messages_as_read( $lead_id ) {
-        Message::mark_as_read( $lead_id );
+    public function mark_messages_delivered( $ids = [] ) {
+        if ( empty( $ids ) || ! is_array( $ids ) ) {
+            return 0;
+        }
+        global $wpdb;
+        $table = $wpdb->prefix . 'salenoo_messages';
+        $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+        $sql = $wpdb->prepare( "UPDATE {$table} SET delivered = 1 WHERE id IN ({$placeholders})", $ids );
+        return $wpdb->query( $sql );
     }
 }

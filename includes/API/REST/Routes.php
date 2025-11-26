@@ -58,6 +58,13 @@ class Routes {
             'callback'            => array( $message_controller, 'get_messages' ),
             'permission_callback' => '__return_true',
         ) );
+
+        // علامت‌گذاری تحویل پیام‌ها
+        register_rest_route( 'salenoo-chat/v1', '/messages/mark-delivered', array(
+            'methods'             => 'POST',
+            'callback'            => array( $message_controller, 'mark_delivered' ),
+            'permission_callback' => '__return_true',
+        ) );
             //شمارش پیام های خوانده نشده
         register_rest_route( 'salenoo-chat/v1', '/admin/unread-count', array(
             'methods' => 'GET',
