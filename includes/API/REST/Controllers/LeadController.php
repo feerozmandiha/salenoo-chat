@@ -38,21 +38,24 @@ class LeadController {
      * @return WP_REST_Response|WP_Error
      */
     public function register_lead( WP_REST_Request $request ) {
-        // دریافت داده‌ها از بدنه‌ی JSON یا POST
-        $params = $request->get_json_params();
-        if ( ! $params ) {
-            $params = $request->get_body_params(); // پشتیبانی از فرم‌های معمولی
+        // دریافت داده‌ها
+        $params = $request->get_json_params() ?: $request->get_body_params();
+
+        if ( ! is_array( $params ) || empty( $params ) ) {
+            return new WP_Error(
+                'invalid_data',
+                __( 'داده‌های ورودی معتبر نیستند.', 'salenoo-chat' ),
+                array( 'status' => 400 )
+            );
         }
 
-        // اگر هیچ داده‌ای ارسال نشده
-        if ( ! is_array( $params ) ) {
-            return new WP_Error( 'invalid_data', __( 'داده‌های ورودی معتبر نیستند.', 'salenoo-chat' ), array( 'status' => 400 ) );
-        }
-
-        // فراخوانی سرویس برای ایجاد/به‌روزرسانی لید
+        // فراخوانی سرویس
         $result = $this->lead_service->create_or_update_lead( $params );
 
+        // بررسی خطا
         if ( is_wp_error( $result ) ) {
+                /** @var \WP_Error $result */
+            // ✅ اکنون PHP و ابزارها می‌دانند که $result یک WP_Error است
             return new WP_Error(
                 $result->get_error_code(),
                 $result->get_error_message(),
@@ -60,10 +63,9 @@ class LeadController {
             );
         }
 
-        // لید با موفقیت ذخیره شد
+        // موفقیت: $result یک شیء از نوع Lead است
         $lead = $result;
 
-        // پاسخ موفقیت‌آمیز
         return new WP_REST_Response( array(
             'success'    => true,
             'lead_id'    => $lead->id,

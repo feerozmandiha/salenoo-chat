@@ -46,6 +46,8 @@ class ChatFrontend {
                 'ajax_url' => admin_url( 'admin-ajax.php' ),
                 'rest_url' => rest_url( 'salenoo-chat/v1/' ),
                 'is_mobile' => wp_is_mobile(),
+                'nonce'    => wp_create_nonce( 'wp_rest' ), // برای امنیت REST
+
             )
         );
     }

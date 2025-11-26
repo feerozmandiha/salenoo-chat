@@ -8,6 +8,8 @@
 namespace SalenooChat\API\REST;
 
 use SalenooChat\API\REST\Controllers\LeadController;
+use SalenooChat\API\REST\Controllers\MessageController; // ✅ اضافه شد
+
 
 
 defined( 'ABSPATH' ) || exit;
@@ -25,30 +27,36 @@ class Routes {
      * ثبت endpointها
      */
     public function register_routes() {
-        $controller = new LeadController();
+        $lead_controller    = new LeadController();
+        $message_controller = new MessageController();
 
-        // ثبت لید جدید یا به‌روزرسانی
+        // ثبت لید
         register_rest_route( 'salenoo-chat/v1', '/leads/register', array(
             'methods'             => 'POST',
-            'callback'            => array( $controller, 'register_lead' ),
-            'permission_callback' => '__return_true', // همه می‌توانند ارسال کنند
+            'callback'            => array( $lead_controller, 'register_lead' ),
+            'permission_callback' => '__return_true',
         ) );
 
-        // دریافت لید فعلی (برای کاربران بازگشته)
+        // دریافت لید فعلی
         register_rest_route( 'salenoo-chat/v1', '/leads/current', array(
             'methods'             => 'GET',
-            'callback'            => array( $controller, 'get_current_lead' ),
+            'callback'            => array( $lead_controller, 'get_current_lead' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ارسال پیام
+        register_rest_route( 'salenoo-chat/v1', '/messages/send', array(
+            'methods'             => 'POST',
+            'callback'            => array( $message_controller, 'send_message' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // دریافت پیام‌ها
+        register_rest_route( 'salenoo-chat/v1', '/messages', array(
+            'methods'             => 'GET',
+            'callback'            => array( $message_controller, 'get_messages' ),
             'permission_callback' => '__return_true',
         ) );
     }
 
-    /**
-     * کال‌بک ثبت لید جدید (موقت)
-     */
-    public function register_lead( \WP_REST_Request $request ) {
-        return new \WP_REST_Response( array(
-            'success' => true,
-            'message' => __( 'لید با موفقیت ثبت شد.', 'salenoo-chat' ),
-        ), 200 );
-    }
 }
