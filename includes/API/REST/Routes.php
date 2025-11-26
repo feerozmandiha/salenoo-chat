@@ -7,7 +7,6 @@
 
 namespace SalenooChat\API\REST;
 
-use Automattic\WooCommerce\Internal\StockNotifications\Admin\AdminManager;
 use SalenooChat\API\REST\Controllers\LeadController;
 use SalenooChat\API\REST\Controllers\MessageController; // ✅ اضافه شد
 use SalenooChat\Admin\Admin;

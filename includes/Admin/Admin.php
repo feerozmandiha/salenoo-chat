@@ -20,7 +20,6 @@ class Admin {
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
         add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
         add_action( 'wp_ajax_salenoo_edit_lead', [ $this, 'ajax_edit_lead' ] );
-        add_action( 'admin_menu', [ $this, 'add_admin_menu' ] );
         add_action( 'admin_bar_menu', [ $this, 'add_admin_bar_badge' ], 999 ); // برای نوار بالایی
 
             // بارگذاری اسکریپت‌های ادمین

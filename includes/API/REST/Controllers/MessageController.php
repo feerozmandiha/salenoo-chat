@@ -96,12 +96,12 @@ class MessageController {
             return new WP_Error( 'missing_data', 'داده ناقص است.', [ 'status' => 400 ] );
         }
 
-        $lead = \SalenooChat\Models\Lead::find( $lead_id );
+        $lead = Lead::find( $lead_id );
         if ( ! $lead ) {
             return new WP_Error( 'lead_not_found', 'لید یافت نشد.', [ 'status' => 404 ] );
         }
 
-        $message = new \SalenooChat\Models\Message();
+        $message = new Message();
         $message->lead_id = $lead_id;
         $message->sender  = 'admin';
         $message->content = $content;

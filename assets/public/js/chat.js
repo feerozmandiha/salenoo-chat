@@ -15,6 +15,8 @@ class SalenooChatWidget {
 
     init() {
         this.setupTrigger();
+        this.tryRestoreLead(); // بازیابی leadId از localStorage
+
     }
 
     getOrCreateVisitorId() {
@@ -31,12 +33,53 @@ class SalenooChatWidget {
         return id;
     }
 
-    setupTrigger() {
+        /**
+     * تلاش برای بازیابی leadId از localStorage
+     */
+    tryRestoreLead() {
+        const storedLeadId = localStorage.getItem( 'salenoo_chat_lead_id' );
+        if ( storedLeadId ) {
+            this.leadId = parseInt( storedLeadId, 10 );
+            const storedLastMsg = localStorage.getItem( 'salenoo_chat_last_message_' + this.leadId );
+            if ( storedLastMsg ) {
+                this.lastMessageId = parseInt( storedLastMsg, 10 );
+            }
+        }
+    }
+
+     setupTrigger() {
         const trigger = document.getElementById( 'salenoo-chat-trigger' );
         if ( trigger ) {
             trigger.addEventListener( 'click', () => {
                 this.toggleChat();
             } );
+        }
+    }
+
+    
+    /**
+     * دریافت لید فعلی از سرور
+     */
+    async fetchCurrentLead() {
+        try {
+            const response = await fetch( this.config.rest_url + 'leads/current', {
+                headers: { 'X-WP-Nonce': this.config.nonce }
+            } );
+            
+            if ( response.ok ) {
+                const data = await response.json();
+                if ( data.exists && data.lead_id ) {
+                    this.leadId = data.lead_id;
+                    localStorage.setItem( 'salenoo_chat_lead_id', String( this.leadId ) );
+                    
+                    // بارگذاری پیام‌های قبلی
+                    if ( data.messages && data.messages.length > 0 ) {
+                        this.loadPreviousMessages( data.messages );
+                    }
+                }
+            }
+        } catch ( err ) {
+            console.warn( 'Fetch current lead error:', err );
         }
     }
 
@@ -69,7 +112,7 @@ class SalenooChatWidget {
     }
 
     renderChatWidget() {
-        const widget = document.createElement( 'div' );
+        const widget = document.createElement('div');
         widget.id = 'salenoo-chat-widget';
         widget.className = 'salenoo-chat-widget';
         widget.innerHTML = `
@@ -82,39 +125,81 @@ class SalenooChatWidget {
             </div>
             <div class="salenoo-chat-input">
                 <textarea placeholder="پیام خود را بنویسید..." maxlength="500"></textarea>
-                <button>ارسال</button>
+                <button class="salenoo-send-btn">ارسال</button>
             </div>
+
             <div class="salenoo-chat-alternatives">
                 <small>راه‌های دیگر تماس:</small>
-                <a href="https://wa.me/message/IAP7KGPJ32HWP1" target="_blank">واتساپ</a>
-                <a href="tel:09124533878">تماس</a>
+
+                <div class="salenoo-contact-buttons">
+                    <a class="salenoo-contact-btn salenoo-contact-wa" 
+                    href="https://wa.me/message/IAP7KGPJ32HWP1" target="_blank" rel="noopener noreferrer">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                            <path d="M20.52 3.48C18.09 1.05 14.88 0 11.69 0 5.77 0 .98 4.79 .98 10.71c0 1.89.5 3.73 1.45 5.33L0 24l8.33-2.46c1.48.41 3.03.63 4.58.63 5.91 0 10.7-4.79 10.7-10.71 0-3.19-1.05-6.4-2.99-8.31z" fill="#25D366"/>
+                            <path d="M17.45 14.21c-.34-.17-2.02-.99-2.34-1.1-.32-.11-.55-.17-.78.17-.23.34-.9 1.1-1.1 1.33-.2.23-.39.26-.73.09-.34-.17-1.44-.53-2.74-1.68-1.01-.9-1.69-2.01-1.89-2.35-.2-.34-.02-.52.15-.69.15-.15.34-.39.51-.59.17-.2.23-.34.34-.56.11-.23 0-.43-.02-.6-.02-.17-.78-1.88-1.07-2.58-.28-.68-.57-.59-.78-.6-.2-.01-.43-.01-.66-.01-.23 0-.6.09-.92.43-.32.34-1.22 1.19-1.22 2.9 0 1.71 1.25 3.37 1.42 3.6.17.23 2.46 3.75 5.96 5.12 3.5 1.37 3.5.92 4.13.86.63-.05 2.02-.82 2.31-1.63.29-.8.29-1.49.2-1.63-.09-.15-.32-.23-.66-.4z" fill="#fff"/>
+                        </svg>
+                        <span>واتساپ</span>
+                    </a>
+
+                    <a class="salenoo-contact-btn salenoo-contact-call" 
+                    href="tel:09124533878">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.86 19.86 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.86 19.86 0 0 1-3.07-8.63A2 2 0 0 1 4.09 2h3a2 2 0 0 1 2 1.72c.12.99.38 1.95.76 2.84a2 2 0 0 1-.45 2.11L8.91 10.91a16 16 0 0 0 6 6l1.24-1.24a2 2 0 0 1 2.11-.45c.89.38 1.85.64 2.84.76A2 2 0 0 1 22 16.92z" fill="#0066cc"/>
+                        </svg>
+                        <span>تماس</span>
+                    </a>
+                </div>
             </div>
         `;
-        document.body.appendChild( widget );
 
-        widget.querySelector( '.salenoo-chat-close' ).addEventListener( 'click', () => {
-            this.closeChat();
-        } );
+        document.body.appendChild(widget);
 
-        const input = widget.querySelector( 'textarea' );
-        const button = widget.querySelector( 'button' );
+        // عناصر
+        const input = widget.querySelector('textarea');
+        const sendBtn = widget.querySelector('.salenoo-send-btn');
+        const closeBtn = widget.querySelector('.salenoo-chat-close');
 
+        // --- بستن ---
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.closeChat());
+        }
+
+        // --- ارسال ---
         const sendMessage = () => {
             const content = input.value.trim();
-            if ( content ) {
-                this.sendMessage( content );
+            if (content) {
+                this.sendMessage(content);
                 input.value = '';
+                input.focus();
             }
         };
 
-        button.addEventListener( 'click', sendMessage );
-        input.addEventListener( 'keypress', ( e ) => {
-            if ( e.key === 'Enter' && ! e.shiftKey ) {
+        if (sendBtn) {
+            sendBtn.addEventListener('click', sendMessage);
+        }
+
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage();
             }
-        } );
+        });
     }
+
+    async openChat() {
+        if ( this.isChatOpen ) return;
+
+        this.isChatOpen = true;
+        this.renderChatWidget();
+        
+        // اگر leadId نداریم، سعی کنیم از سرور بگیریم
+        if ( ! this.leadId ) {
+            await this.fetchCurrentLead();
+        }
+        
+        this.startPolling();
+    }
+
 
     async sendMessage( content ) {
         const response = await fetch( this.config.rest_url + 'messages/send', {
@@ -230,6 +315,33 @@ class SalenooChatWidget {
         const div = document.createElement( 'div' );
         div.textContent = str;
         return div.innerHTML;
+    }
+
+        /**
+     * بارگذاری پیام‌های قبلی
+     */
+    loadPreviousMessages( messages ) {
+        const container = document.querySelector( '.salenoo-chat-messages' );
+        if ( ! container ) return;
+
+        const welcome = container.querySelector( '.salenoo-chat-welcome' );
+        if ( welcome ) welcome.remove();
+
+        let maxId = this.lastMessageId || 0;
+        
+        messages.forEach( msg => {
+            this.appendMessage( msg );
+            if ( msg.id && parseInt( msg.id, 10 ) > maxId ) {
+                maxId = parseInt( msg.id, 10 );
+            }
+        } );
+
+        if ( maxId > ( this.lastMessageId || 0 ) ) {
+            this.lastMessageId = maxId;
+            localStorage.setItem( 'salenoo_chat_last_message_' + this.leadId, String( this.lastMessageId ) );
+        }
+
+        this.scrollToBottom();
     }
 }
 
