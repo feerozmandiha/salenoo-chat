@@ -15,8 +15,6 @@ class SalenooChatWidget {
 
     init() {
         this.setupTrigger();
-        this.tryRestoreLead(); // بازیابی leadId از localStorage
-
     }
 
     getOrCreateVisitorId() {
@@ -33,53 +31,12 @@ class SalenooChatWidget {
         return id;
     }
 
-        /**
-     * تلاش برای بازیابی leadId از localStorage
-     */
-    tryRestoreLead() {
-        const storedLeadId = localStorage.getItem( 'salenoo_chat_lead_id' );
-        if ( storedLeadId ) {
-            this.leadId = parseInt( storedLeadId, 10 );
-            const storedLastMsg = localStorage.getItem( 'salenoo_chat_last_message_' + this.leadId );
-            if ( storedLastMsg ) {
-                this.lastMessageId = parseInt( storedLastMsg, 10 );
-            }
-        }
-    }
-
-     setupTrigger() {
+    setupTrigger() {
         const trigger = document.getElementById( 'salenoo-chat-trigger' );
         if ( trigger ) {
             trigger.addEventListener( 'click', () => {
                 this.toggleChat();
             } );
-        }
-    }
-
-    
-    /**
-     * دریافت لید فعلی از سرور
-     */
-    async fetchCurrentLead() {
-        try {
-            const response = await fetch( this.config.rest_url + 'leads/current', {
-                headers: { 'X-WP-Nonce': this.config.nonce }
-            } );
-            
-            if ( response.ok ) {
-                const data = await response.json();
-                if ( data.exists && data.lead_id ) {
-                    this.leadId = data.lead_id;
-                    localStorage.setItem( 'salenoo_chat_lead_id', String( this.leadId ) );
-                    
-                    // بارگذاری پیام‌های قبلی
-                    if ( data.messages && data.messages.length > 0 ) {
-                        this.loadPreviousMessages( data.messages );
-                    }
-                }
-            }
-        } catch ( err ) {
-            console.warn( 'Fetch current lead error:', err );
         }
     }
 
@@ -184,20 +141,6 @@ class SalenooChatWidget {
                 sendMessage();
             }
         });
-    }
-
-    async openChat() {
-        if ( this.isChatOpen ) return;
-
-        this.isChatOpen = true;
-        this.renderChatWidget();
-        
-        // اگر leadId نداریم، سعی کنیم از سرور بگیریم
-        if ( ! this.leadId ) {
-            await this.fetchCurrentLead();
-        }
-        
-        this.startPolling();
     }
 
 
@@ -315,33 +258,6 @@ class SalenooChatWidget {
         const div = document.createElement( 'div' );
         div.textContent = str;
         return div.innerHTML;
-    }
-
-        /**
-     * بارگذاری پیام‌های قبلی
-     */
-    loadPreviousMessages( messages ) {
-        const container = document.querySelector( '.salenoo-chat-messages' );
-        if ( ! container ) return;
-
-        const welcome = container.querySelector( '.salenoo-chat-welcome' );
-        if ( welcome ) welcome.remove();
-
-        let maxId = this.lastMessageId || 0;
-        
-        messages.forEach( msg => {
-            this.appendMessage( msg );
-            if ( msg.id && parseInt( msg.id, 10 ) > maxId ) {
-                maxId = parseInt( msg.id, 10 );
-            }
-        } );
-
-        if ( maxId > ( this.lastMessageId || 0 ) ) {
-            this.lastMessageId = maxId;
-            localStorage.setItem( 'salenoo_chat_last_message_' + this.leadId, String( this.lastMessageId ) );
-        }
-
-        this.scrollToBottom();
     }
 }
 
